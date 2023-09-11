@@ -91,8 +91,14 @@ namespace Stx.ThreeSixtyfyer
         [JsonProperty("_notes")]
         public List<BeatMapNote> Notes { get; set; }
 
+        //[JsonProperty("_sliders", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        //public List<BeatMapSlider> Sliders { get; set; }//instroduced v2.6
+
         [JsonProperty("_obstacles")]
         public List<BeatMapObstacle> Obstacles { get; set; }
+
+        //[JsonProperty("_waypoints", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        //public List<BeatMapWaypoint> Waypoints { get; set; }//instroduced v2.2
 
         [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object CustomData { get; set; }
@@ -104,8 +110,10 @@ namespace Stx.ThreeSixtyfyer
             Version = other.Version;
             Events = new List<BeatMapEvent>(other.Events);
             Notes = new List<BeatMapNote>(other.Notes);
+            //Sliders = other.Sliders;//not altering these //new List<BeatMapSlider>(other.Sliders);
             Obstacles = new List<BeatMapObstacle>(other.Obstacles);
-            CustomData = other.CustomData;
+            //Waypoints = other.Waypoints;//not altering these // new List<BeatMapWaypoint>(other.Waypoints);
+            CustomData = other.CustomData;//not altering these
 
             // Split the mapVersion string by '.' to extract major version number.
             string[] versionParts = Version.Split('.');
@@ -187,7 +195,6 @@ namespace Stx.ThreeSixtyfyer
                 width = width
             });
         }
-
         public void AddWallV3(float time, int noteLineIndex, ObstacleType type, int noteLineLayer, float duration, int width, int height = 5)
         {
             //If v2 obstacle is sent here to convert it to v3
@@ -226,8 +233,11 @@ namespace Stx.ThreeSixtyfyer
     }
 
     [Serializable]
-    public class BeatMapEvent
+    public class BeatMapEvent//everything in here will be added to the output map
     {
+        [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]//adding this will remove _customData if its empty otherwise every event will have customdata and will say "null" if no customdata
+        public object CustomData { get; set; }
+
         [JsonProperty("_time")]
         public float time { get; set; }//used by Sort method
 
@@ -260,6 +270,9 @@ namespace Stx.ThreeSixtyfyer
     [Serializable]
     public class BeatMapNote
     {
+        [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object CustomData { get; set; }
+
         [JsonProperty("_time")]
         public float time { get; set; }
 
@@ -307,6 +320,9 @@ namespace Stx.ThreeSixtyfyer
     [Serializable]
     public class BeatMapSlider
     {
+        [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object CustomData { get; set; }
+
         [JsonProperty("_colorType")]
         public int colorType { get; set; }
 
@@ -348,6 +364,9 @@ namespace Stx.ThreeSixtyfyer
     [Serializable]
     public class BeatMapObstacle
     {
+        [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object CustomData { get; set; }
+
         [JsonProperty("_time")]
         public float time { get; set; }
 
