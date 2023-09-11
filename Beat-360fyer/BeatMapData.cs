@@ -80,21 +80,23 @@ namespace Stx.ThreeSixtyfyer
     [Serializable]
     public class BeatMapData//base for v2 & v3 maps
     {
-        [JsonProperty("_version")]
-        public string Version { get; set; }
-
         private int MajorVersion = 0;
 
-        [JsonProperty("_events")]
+        //v2 elements-----------------------------------------------------------
+
+        [JsonProperty("_version", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public string Version { get; set; }
+
+        [JsonProperty("_events", DefaultValueHandling = DefaultValueHandling.Ignore)]//adding this will remove _events if its empty otherwise if its missing from the doc will say "null" if no customdata
         public List<BeatMapEvent> Events { get; set; }
 
-        [JsonProperty("_notes")]
+        [JsonProperty("_notes", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public List<BeatMapNote> Notes { get; set; }
 
         [JsonProperty("_sliders", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object Sliders { get; set; }//List<BeatMapSlider> Sliders { get; set; }//instroduced v2.6
 
-        [JsonProperty("_obstacles")]
+        [JsonProperty("_obstacles", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public List<BeatMapObstacle> Obstacles { get; set; }
 
         [JsonProperty("_waypoints", DefaultValueHandling = DefaultValueHandling.Ignore)]
@@ -103,10 +105,64 @@ namespace Stx.ThreeSixtyfyer
         [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object CustomData { get; set; }
 
+        //v3 elements ---------------------------------------------------------
+
+        [JsonProperty("version", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public string versionV3 { get; set; }
+
+        [JsonProperty("bpmEvents", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object bpmEvents { get; set; }
+
+        [JsonProperty("rotationEvents", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object rotationEvents { get; set; }
+
+        [JsonProperty("colorNotes", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object colorNotes { get; set; }
+
+        [JsonProperty("bombNotes", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object bombNotes { get; set; }
+
+        [JsonProperty("obstacles", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object obstacles { get; set; }
+
+        [JsonProperty("sliders", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object sliders { get; set; }
+
+        [JsonProperty("burstSliders", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object burstSliders { get; set; }
+
+        [JsonProperty("waypoints", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object waypoints { get; set; }
+
+        [JsonProperty("basicBeatmapEvents", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object basicBeatmapEvents { get; set; }
+
+        [JsonProperty("colorBoostBeatmapEvents", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object colorBoostBeatmapEvents { get; set; }
+
+        [JsonProperty("lightColorEventBoxGroups", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object lightColorEventBoxGroups { get; set; }
+
+        [JsonProperty("lightRotationEventBoxGroups", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object lightRotationEventBoxGroups { get; set; }
+
+        [JsonProperty("lightTranslationEventBoxGroups", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object lightTranslationEventBoxGroups { get; set; }
+
+        [JsonProperty("basicEventTypesWithKeywords", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object basicEventTypesWithKeywords { get; set; }
+
+        [JsonProperty("useNormalEventsAsCompatibleEvents", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public bool useNormalEventsAsCompatibleEvents { get; set; }
+
+        [JsonProperty("customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object customData { get; set; }
+
         public BeatMapData() { }
 
         public BeatMapData(BeatMapData other)
         {
+            //v2 properties ---------------------------------
             Version = other.Version;
             Events = new List<BeatMapEvent>(other.Events);
             Notes = new List<BeatMapNote>(other.Notes);
@@ -114,6 +170,26 @@ namespace Stx.ThreeSixtyfyer
             Obstacles = new List<BeatMapObstacle>(other.Obstacles);
             Waypoints = other.Waypoints;//not altering these // new List<BeatMapWaypoint>(other.Waypoints);
             CustomData = other.CustomData;//not altering these
+
+            /*
+            //v3 properties ---------------------------------
+            versionV3 = other.Version;
+            bpmEvents = other.bpmEvents;
+            rotationEvents = other.rotationEvents;
+            colorNotes = other.colorNotes;
+            bombNotes = other.bombNotes;
+            obstacles = other.obstacles;
+            sliders = other.sliders;
+            burstSliders = other.burstSliders;
+            waypoints = other.waypoints;
+            basicBeatmapEvents = other.basicBeatmapEvents;
+            colorBoostBeatmapEvents = other.colorBoostBeatmapEvents;
+            lightColorEventBoxGroups = other.lightColorEventBoxGroups;
+            lightRotationEventBoxGroups = other.lightRotationEventBoxGroups;
+            lightTranslationEventBoxGroups = other.lightTranslationEventBoxGroups;
+            useNormalEventsAsCompatibleEvents = other.useNormalEventsAsCompatibleEvents;
+            customData = other.customData;
+            */
 
             // Split the mapVersion string by '.' to extract major version number.
             string[] versionParts = Version.Split('.');
@@ -235,7 +311,7 @@ namespace Stx.ThreeSixtyfyer
     [Serializable]
     public class BeatMapEvent//everything in here will be added to the output map
     {
-        [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]//adding this will remove _customData if its empty otherwise every event will have customdata and will say "null" if no customdata
+        [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object CustomData { get; set; }
 
         [JsonProperty("_time")]
@@ -318,6 +394,7 @@ namespace Stx.ThreeSixtyfyer
 
     }
     /*
+    //Not needed since just passing sliders with changes
     [Serializable]
     public class BeatMapSlider
     {
