@@ -91,8 +91,8 @@ namespace Stx.ThreeSixtyfyer
         [JsonProperty("_notes")]
         public List<BeatMapNote> Notes { get; set; }
 
-        //[JsonProperty("_sliders", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        //public List<BeatMapSlider> Sliders { get; set; }//instroduced v2.6
+        [JsonProperty("_sliders", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object Sliders { get; set; }//List<BeatMapSlider> Sliders { get; set; }//instroduced v2.6
 
         [JsonProperty("_obstacles")]
         public List<BeatMapObstacle> Obstacles { get; set; }
@@ -110,7 +110,7 @@ namespace Stx.ThreeSixtyfyer
             Version = other.Version;
             Events = new List<BeatMapEvent>(other.Events);
             Notes = new List<BeatMapNote>(other.Notes);
-            //Sliders = other.Sliders;//not altering these //new List<BeatMapSlider>(other.Sliders);
+            Sliders = other.Sliders;//not altering these //new List<BeatMapSlider>(other.Sliders);
             Obstacles = new List<BeatMapObstacle>(other.Obstacles);
             Waypoints = other.Waypoints;//not altering these // new List<BeatMapWaypoint>(other.Waypoints);
             CustomData = other.CustomData;//not altering these
@@ -317,6 +317,7 @@ namespace Stx.ThreeSixtyfyer
         public int angleOffset { get; set; }//An integer number which represents the additional counter-clockwise angle offset applied to the note's cut direction in degrees
 
     }
+    /*
     [Serializable]
     public class BeatMapSlider
     {
@@ -360,6 +361,7 @@ namespace Stx.ThreeSixtyfyer
         public int sliderMidAnchorMode { get; set; }
 
     }
+    */
 
     [Serializable]
     public class BeatMapObstacle
