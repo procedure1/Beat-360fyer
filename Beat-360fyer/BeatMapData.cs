@@ -97,8 +97,8 @@ namespace Stx.ThreeSixtyfyer
         [JsonProperty("_obstacles")]
         public List<BeatMapObstacle> Obstacles { get; set; }
 
-        //[JsonProperty("_waypoints", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        //public List<BeatMapWaypoint> Waypoints { get; set; }//instroduced v2.2
+        [JsonProperty("_waypoints", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object Waypoints { get; set; }//instroduced v2.2
 
         [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object CustomData { get; set; }
@@ -112,7 +112,7 @@ namespace Stx.ThreeSixtyfyer
             Notes = new List<BeatMapNote>(other.Notes);
             //Sliders = other.Sliders;//not altering these //new List<BeatMapSlider>(other.Sliders);
             Obstacles = new List<BeatMapObstacle>(other.Obstacles);
-            //Waypoints = other.Waypoints;//not altering these // new List<BeatMapWaypoint>(other.Waypoints);
+            Waypoints = other.Waypoints;//not altering these // new List<BeatMapWaypoint>(other.Waypoints);
             CustomData = other.CustomData;//not altering these
 
             // Split the mapVersion string by '.' to extract major version number.
