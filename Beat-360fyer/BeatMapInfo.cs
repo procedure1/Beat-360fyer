@@ -237,13 +237,13 @@ namespace Stx.ThreeSixtyfyer
 
         public static IEnumerable<BeatMapDifficultyLevel> AllDiffultyLevels => Enum.GetValues(typeof(BeatMapDifficultyLevel)).Cast<BeatMapDifficultyLevel>();
 
-        public BeatMap LoadBeatMap(string mapDirectory)
+        public BeatMapData LoadBeatMap(string mapDirectory)
         {
             string fullPath = Path.Combine(mapDirectory, beatmapFilename);
-            return JsonConvert.DeserializeObject<BeatMap>(File.ReadAllText(fullPath), Program.JsonSettings);
+            return JsonConvert.DeserializeObject<BeatMapData>(File.ReadAllText(fullPath), Program.JsonSettings);
         }
 
-        public void SaveBeatMap(string mapDirectory, BeatMap map)
+        public void SaveBeatMap(string mapDirectory, BeatMapData map)
         {
             string fullPath = Path.Combine(mapDirectory, beatmapFilename);
             File.WriteAllText(fullPath, JsonConvert.SerializeObject(map, Program.JsonSettings));

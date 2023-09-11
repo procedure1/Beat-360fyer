@@ -14,7 +14,7 @@ namespace Stx.ThreeSixtyfyer
     {
         public static JsonSerializerSettings JsonSettings => new JsonSerializerSettings()
         {
-            TypeNameHandling = TypeNameHandling.Auto,
+            TypeNameHandling = TypeNameHandling.None,
             Formatting = Formatting.Indented
         };
 
