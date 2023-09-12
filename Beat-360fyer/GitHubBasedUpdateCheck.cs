@@ -35,7 +35,7 @@ namespace Stx.ThreeSixtyfyer
                 {
                     string redVersion = await client.GetStringAsync(VersionFileUrl);
                     Console.WriteLine("Current version: " + currentVersion);
-                    Console.WriteLine("Red version: " + redVersion);
+                    Console.WriteLine("Read version: " + redVersion);
                     return SemVersion.Parse(redVersion) > currentVersion;
                 }
             }

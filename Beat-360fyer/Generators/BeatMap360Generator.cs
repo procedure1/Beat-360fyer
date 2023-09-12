@@ -3,6 +3,7 @@ using Newtonsoft.Json.Converters;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -36,12 +37,14 @@ namespace Stx.ThreeSixtyfyer.Generators
                 return map;
 
             //FROM PLUGIN
+            //Can't figure out how to search for custom walls without crashing the exe so not implementing it.
             /*
-            LinkedList<BeatmapDataItem> dataItems = data.allBeatmapDataItems;
-
-            bool containsCustomWalls = dataItems.Count((e) => e is CustomObstacleData d && (d.customData?.ContainsKey("_position") ?? false)) > 12;
-            Debug.WriteLine($"Contains custom walls: {containsCustomWalls}");
+            //LinkedList<BeatmapDataItem> dataItems = data.allBeatmapDataItems;
+            //bool containsCustomWalls = dataItems.Count((e) => e is CustomObstacleData d && (d.customData?.ContainsKey("_position") ?? false)) > 12;
+            bool containsCustomWalls = map.ContainsCustomWalls();
             */
+
+
 
             // Amount of rotation events emitted
             int eventCount = 0;
@@ -348,8 +351,8 @@ namespace Stx.ThreeSixtyfyer.Generators
                     }
                     */
 
-                    // Generate wall. BW fyi v2 wall with _type 1 or v3 wall y: noteLineLayer.Top or 2 is a crouch wall -- but must be must be wide enough to and over correct x: lineIndex to be over a player
-                    //BW FIX!
+                    // Generate wall.
+                    // BW fyi v2 wall _type 1 or v3 wall y: noteLineLayer.Top(2) is a crouch wall -- but must be must be wide enough to and over correct x: lineIndex to be over a player
                     if (settings.WallGenerator)// && !containsCustomWalls)
                     {
                         int width = 1;//generate walls with width 1
@@ -414,17 +417,18 @@ namespace Stx.ThreeSixtyfyer.Generators
 #endif
             }//End for loop over all notes
 
-            /*
+            
             //BW noodle extensions causes BS crash in the section somewhere below. Could drill down and figure out why. Haven't figured out how to test for noodle extensions but noodle extension have custom walls that crash Beat Saber so BW added test for custom walls.
             //BW FIX!
+            bool containsCustomWalls = false;
             if (!containsCustomWalls)
             {
                 //Cut walls, walls will be cut when a rotation event is emitted
-                Queue<ObstacleData> obstacles = new Queue<ObstacleData>(dataItems.OfType<ObstacleData>());
+                List<BeatMapObstacle> obstaclesToRemove   = new List<BeatMapObstacle>();
+                List<BeatMapObstacle> secondPartObstacles = new List<BeatMapObstacle>();
 
-                while (obstacles.Count > 0)
+                foreach (BeatMapObstacle ob in map.Obstacles.ToList()) // ToList() creates a copy of the collection.
                 {
-                    ObstacleData ob = obstacles.Dequeue();
                     foreach ((float cutTime, int cutAmount) in wallCutMoments)
                     {
                         if (ob.duration <= 0f)
@@ -436,24 +440,24 @@ namespace Stx.ThreeSixtyfyer.Generators
                         //{
                         //    isCustomWall = ob.customData.ContainsKey("_position");
                         //}
-                        float frontCut = isCustomWall ? 0f : WallFrontCut;
-                        float backCut = isCustomWall ? 0f : WallBackCut;
+                        float frontCut = isCustomWall ? 0f : settings.WallFrontCut;
+                        float backCut = isCustomWall ? 0f : settings.WallBackCut;
 
 
-                        if (!isCustomWall && ((ob.lineIndex == 1 || ob.lineIndex == 2) && ob.width == 1))//BW lean walls that are only width 1 and hard to see coming in 360)
+                        if (!isCustomWall && ((ob.noteLineIndex == 1 || ob.noteLineIndex == 2) && ob.width == 1))//BW lean walls that are only width 1 and hard to see coming in 360)
                         {
-                            dataItems.Remove(ob);
+                            obstaclesToRemove.Add(ob);
                         }
-                        else if (!isCustomWall && !AllowLeanWalls && ((ob.lineIndex == 0 && ob.width == 2) || (ob.lineIndex == 2 && ob.width > 1)))//BW lean walls
+                        else if (!isCustomWall && !settings.AllowLeanWalls && ((ob.noteLineIndex == 0 && ob.width == 2) || (ob.noteLineIndex == 2 && ob.width > 1)))//BW lean walls
                         {
-                            dataItems.Remove(ob);
+                            obstaclesToRemove.Add(ob);
                         }
-                        else if (!isCustomWall && !AllowCrouchWalls && (ob.lineIndex == 0 && ob.width > 2))//BW crouch walls
+                        else if (!isCustomWall && !settings.AllowCrouchWalls && (ob.noteLineIndex == 0 && ob.width > 2))//BW crouch walls
                         {
-                            dataItems.Remove(ob);
+                            obstaclesToRemove.Add(ob);
                         }
                         // If moved in direction of wall
-                        else if (isCustomWall || (ob.lineIndex <= 1 && cutAmount < 0) || (ob.lineIndex >= 2 && cutAmount > 0))
+                        else if (isCustomWall || (ob.noteLineIndex <= 1 && cutAmount < 0) || (ob.noteLineIndex >= 2 && cutAmount > 0))
                         {
                             int cutMultiplier = Math.Abs(cutAmount);
                             if (cutTime > ob.time - frontCut && cutTime < ob.time + ob.duration + backCut * cutMultiplier)
@@ -466,36 +470,42 @@ namespace Stx.ThreeSixtyfyer.Generators
                                 float secondPartTime = cutTime + frontCut; // 225.631
                                 float secondPartDuration = (ob.time + ob.duration) - secondPartTime; //0.203476
 
-                                if (firstPartDuration >= MinWallDuration && secondPartDuration >= MinWallDuration)
+                                if (firstPartDuration >= settings.MinWallDuration && secondPartDuration >= settings.MinWallDuration)
                                 {
                                     // Update duration of existing obstacle
-                                    ob.UpdateDuration(firstPartDuration);
+                                    ob.duration = firstPartDuration;
 
                                     // And create a new obstacle after it
-                                    ObstacleData secondPart = new ObstacleData(secondPartTime, ob.lineIndex, ob.lineLayer, secondPartDuration, ob.width, ob.height);
-                                    data.AddBeatmapObjectDataInOrder(secondPart);//BW Discord help said to change AddBeatmapObjectData to AddBeatmapObjectDataInOrder which allowed content to be stored to data.
-                                    obstacles.Enqueue(secondPart);
+                                    BeatMapObstacle secondPart = new BeatMapObstacle
+                                    {
+                                        time = secondPartTime,
+                                        noteLineIndex = ob.noteLineIndex,
+                                        type = ob.type,
+                                        duration = secondPartDuration,
+                                        width = ob.width
+                                    };
+                                    secondPartObstacles.Add(secondPart);
                                 }
-                                else if (firstPartDuration >= MinWallDuration)
+                                else if (firstPartDuration >= settings.MinWallDuration)
                                 {
                                     // Just update the existing obstacle, the second piece of the cut wall is too small
-                                    ob.UpdateDuration(firstPartDuration);
+                                    ob.duration =firstPartDuration;
                                 }
-                                else if (secondPartDuration >= MinWallDuration)
+                                else if (secondPartDuration >= settings.MinWallDuration)
                                 {
                                     // Reuse the obstacle and use it as second part
                                     if (secondPartTime != ob.time && secondPartDuration != ob.duration)
                                     {
                                         //Debug.WriteLine("Queue 7");
-                                        ob.UpdateTime(secondPartTime);
-                                        ob.UpdateDuration(secondPartDuration);
-                                        obstacles.Enqueue(ob);
+                                        ob.time = secondPartTime;
+                                        ob.duration = secondPartDuration;
+                                        secondPartObstacles.Add(ob);
                                     }
                                 }
                                 else
                                 {
                                     // When this wall is cut, both pieces are too small, remove it
-                                    dataItems.Remove(ob);
+                                    obstaclesToRemove.Add(ob);
                                 }
 #if DEBUG
                                 Debug.WriteLine($"Split wall at {cutTime}: {originalTime}({originalDuration}) -> {firstPartTime}({firstPartDuration}) <|> {secondPartTime}({secondPartDuration}) cutMultiplier={cutMultiplier}");
@@ -506,8 +516,17 @@ namespace Stx.ThreeSixtyfyer.Generators
 
                 }
 
+                foreach (BeatMapObstacle ob in obstaclesToRemove)
+                {
+                    map.Obstacles.Remove(ob);//remove the obstacles that met the criteria now
+                }
+                foreach (BeatMapObstacle secondPart in secondPartObstacles)
+                {
+                    map.Obstacles.Add(secondPart); //Add secondPart obstacles to map.Obstacles
+                }
+
             }
-            */
+            
             // Remove bombs (just problamatic ones)
             // ToList() is used so the Remove operation does not update the list that is being iterated
             foreach (BeatMapNote bomb in map.Notes.Where((e) => e.noteCutDirection == NoteCutDirection.None).ToList())
@@ -537,9 +556,6 @@ namespace Stx.ThreeSixtyfyer.Generators
 
             //return data;
 
-
-
-
             //FROM MASTER
             map.Sort();
             return map;
@@ -549,6 +565,8 @@ namespace Stx.ThreeSixtyfyer.Generators
     [Serializable]
     public class BeatMap360GeneratorSettings
     {
+        public bool Wireless360 { get; set; } = true;//LimitRotations = 99999;BottleneckRotations = 99999;
+        
         //FROM PLUGIN
         /// <summary>
         /// The preferred bar duration in seconds. The generator will loop the song in bars. 
@@ -556,6 +574,8 @@ namespace Stx.ThreeSixtyfyer.Generators
         /// Affects the speed at which the rotation occurs. It will not affect the total number of rotations or the range of rotation.
         /// BW CREATED CONFIG ROTATION  SPEED to allow user to set this.
         /// </summary>
+        
+        [JsonIgnore]//won't show up in the user config file - not working
         public float PreferredBarDuration { get; set; } = 1.84f;//BW I like 1.5f instead of 1.84f but very similar to changing LimitRotations, 1.0f is too much and 0.2f freezes beat saber  // Calculated from 130 bpm, which is a pretty standard bpm (60 / 130 bpm * 4 whole notes per bar ~= 1.84)
         public float RotationSpeedMultiplier { get; set; } = 1.0f;//BW This is a mulitplyer for PreferredBarDuration
         /// <summary>
@@ -573,6 +593,7 @@ namespace Stx.ThreeSixtyfyer.Generators
         /// <summary>
         /// The total time 1 spin takes in seconds.
         /// </summary>
+        [JsonIgnore]
         public float TotalSpinTime { get; set; } = 0.6f;
         /// <summary>
         /// Minimum amount of seconds between each spin effect.
@@ -643,7 +664,7 @@ namespace Stx.ThreeSixtyfyer.Generators
         public RemoveOriginalWallsMode originalWallsMode = RemoveOriginalWallsMode.RemoveNotFun;
         public WallGeneratorMode wallGenerator = WallGeneratorMode.Enabled;
 
-        public override bool Equals(object obj)
+        public override bool Equals(object obj)//this is called when config file is missing and is created
         {
             if (obj is BeatMap360GeneratorSettings s)
             {
@@ -662,7 +683,7 @@ namespace Stx.ThreeSixtyfyer.Generators
             }
         }
 
-        public override int GetHashCode()
+        public override int GetHashCode()//not sure when this gets called
         {
             int hash = 13;
             unchecked

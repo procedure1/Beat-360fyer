@@ -2,8 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
 using System.Windows.Controls;
+using static Stx.ThreeSixtyfyer.BeatMapGenerator;
 
 namespace Stx.ThreeSixtyfyer
 {
@@ -158,6 +160,8 @@ namespace Stx.ThreeSixtyfyer
         [JsonProperty("customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object customData { get; set; }
 
+        //public bool containsCustomWalls;
+
         public BeatMapData() { }
 
         public BeatMapData(BeatMapData other)
@@ -171,6 +175,7 @@ namespace Stx.ThreeSixtyfyer
             Waypoints = other.Waypoints;//not altering these // new List<BeatMapWaypoint>(other.Waypoints);
             CustomData = other.CustomData;//not altering these
 
+            //containsCustomWalls = ContainsCustomWalls();//crashes exe to use this. tried it in BeatMap360Generator.cs also. same result.
             /*
             //v3 properties ---------------------------------
             versionV3 = other.Version;
@@ -299,13 +304,73 @@ namespace Stx.ThreeSixtyfyer
                 Events = Events.OrderBy((e) => e.time).ToList();
             if (Notes != null)
                 Notes = Notes.OrderBy((e) => e.time).ToList();
-            //if (Sliders != null)
-                //Sliders = Sliders.OrderBy((e) => e.headTime).ToList();
             if (Obstacles != null)
                 Obstacles = Obstacles.OrderBy((e) => e.time).ToList();
-            //if (Waypoints != null)
-            //Waypoints = Waypoints.ToList();
+            //don't need the other items here (sliders, waypoints,etc)
         }
+        /*
+        //crashes exe if use this
+        public bool ContainsCustomWalls()//checks for _position in Obstacles>CustomData
+        {
+            string propertyNameToSearch = "_position";
+
+            // Count the occurrences of the property in the BeatMapData.
+            int propertyCount = CountPropertyOccurrences(this, propertyNameToSearch);
+
+            // Check if more than 12 occurrences were found.
+            bool isMoreThan12 = propertyCount > 12;
+
+            Console.WriteLine("Is More Than 12: " + isMoreThan12);
+
+            int CountPropertyOccurrences(BeatMapData beatMap, string propertyName)
+            {
+                int count = 0;
+
+                // Check if BeatMapData has events.
+                if (beatMap?.Obstacles != null)
+                {
+                    foreach (var beatMapEvent in beatMap.Obstacles)
+                    {
+                        // Check if the event has _customData.
+                        if (beatMapEvent?.CustomData != null)
+                        {
+                            // Convert the _customData object to a dictionary.
+                            var customDataDictionary = GetPropertyDictionary(beatMapEvent.CustomData);
+
+                            // Check if the _customData dictionary contains the specified property name.
+                            if (customDataDictionary.ContainsKey(propertyName))
+                            {
+                                count++;
+                            }
+                        }
+                    }
+                }
+
+                return count;
+            }
+
+            Dictionary<string, object> GetPropertyDictionary(object obj)
+            {
+                // Use reflection to get the properties and their values from the object.
+                var propertyDictionary = new Dictionary<string, object>();
+
+                if (obj != null)
+                {
+                    var type = obj.GetType();
+                    var properties = type.GetProperties();
+
+                    foreach (var property in properties)
+                    {
+                        var propertyName = property.Name;
+                        var propertyValue = property.GetValue(obj, null);
+                        propertyDictionary[propertyName] = propertyValue;
+                    }
+                }
+
+                return propertyDictionary;
+            }
+            return isMoreThan12;
+        }*/
     }
 
     [Serializable]
