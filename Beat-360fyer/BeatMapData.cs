@@ -52,7 +52,7 @@ namespace Stx.ThreeSixtyfyer
     {
         NoteA = 0,//Red left
         NoteB = 1,//Blue right
-        GhostNote = 2,
+        GhostNote = 2,//or Unused
         Bomb = 3,
         None = -1
     }
@@ -108,24 +108,34 @@ namespace Stx.ThreeSixtyfyer
         public object CustomData { get; set; }
 
         //v3 elements ---------------------------------------------------------
+        //v3 maps are converted to v2 in BeatMapData so they can be universally handled in the generator360. But the side effect is JSON will serialize _events, _notes and _obstacles into the .dat file since i'm using those 3 properties to convert v3. these hide them.
+
+        public bool ShouldSerializeEvents()
+        { return MajorVersion == 2; }// Return true to include Events when MajorVersion is 2, false otherwise
+
+        public bool ShouldSerializeNotes()
+        { return MajorVersion == 2; }// Return true to include Events when MajorVersion is 2, false otherwise
+
+        public bool ShouldSerializeObstacles()
+        { return MajorVersion == 2; }// Return true to include Events when MajorVersion is 2, false otherwise
 
         [JsonProperty("version", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public string versionV3 { get; set; }
+        public string version { get; set; }
 
         [JsonProperty("bpmEvents", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object bpmEvents { get; set; }
 
         [JsonProperty("rotationEvents", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public object rotationEvents { get; set; }
+        public List<BeatMapRotationEvent> rotationEvents { get; set; }
 
         [JsonProperty("colorNotes", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public object colorNotes { get; set; }
+        public List<BeatMapColorNote> colorNotes { get; set; }
 
         [JsonProperty("bombNotes", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object bombNotes { get; set; }
 
         [JsonProperty("obstacles", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public object obstacles { get; set; }
+        public List<BeatMapObstacleV3> obstacles { get; set; }
 
         [JsonProperty("sliders", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object sliders { get; set; }
@@ -166,39 +176,14 @@ namespace Stx.ThreeSixtyfyer
 
         public BeatMapData(BeatMapData other)
         {
-            //v2 properties ---------------------------------
-            Version = other.Version;
-            Events = new List<BeatMapEvent>(other.Events);
-            Notes = new List<BeatMapNote>(other.Notes);
-            Sliders = other.Sliders;//not altering these //new List<BeatMapSlider>(other.Sliders);
-            Obstacles = new List<BeatMapObstacle>(other.Obstacles);
-            Waypoints = other.Waypoints;//not altering these // new List<BeatMapWaypoint>(other.Waypoints);
-            CustomData = other.CustomData;//not altering these
-
-            //containsCustomWalls = ContainsCustomWalls();//crashes exe to use this. tried it in BeatMap360Generator.cs also. same result.
-            /*
-            //v3 properties ---------------------------------
-            versionV3 = other.Version;
-            bpmEvents = other.bpmEvents;
-            rotationEvents = other.rotationEvents;
-            colorNotes = other.colorNotes;
-            bombNotes = other.bombNotes;
-            obstacles = other.obstacles;
-            sliders = other.sliders;
-            burstSliders = other.burstSliders;
-            waypoints = other.waypoints;
-            basicBeatmapEvents = other.basicBeatmapEvents;
-            colorBoostBeatmapEvents = other.colorBoostBeatmapEvents;
-            lightColorEventBoxGroups = other.lightColorEventBoxGroups;
-            lightRotationEventBoxGroups = other.lightRotationEventBoxGroups;
-            lightTranslationEventBoxGroups = other.lightTranslationEventBoxGroups;
-            useNormalEventsAsCompatibleEvents = other.useNormalEventsAsCompatibleEvents;
-            customData = other.customData;
-            */
-
             // Split the mapVersion string by '.' to extract major version number.
-            string[] versionParts = Version.Split('.');
-            if (versionParts.Length > 0 && int.TryParse(versionParts[0], out int majorVersion))
+            string[] versionParts;
+            if (other.Version == null)
+                versionParts = other.version.Split('.');
+            else
+                versionParts = other.Version.Split('.');
+
+            if (versionParts != null && versionParts.Length > 0 && int.TryParse(versionParts[0], out int majorVersion))
             {
                 MajorVersion = majorVersion;
 
@@ -213,6 +198,76 @@ namespace Stx.ThreeSixtyfyer
                 // Handle the case where parsing the major version fails.
                 throw new Exception("Invalid version format: " + Version);
             }
+
+            if (MajorVersion == 2)//v2 properties ---------------------------------
+            {
+                Version = other.Version;
+
+                Events = new List<BeatMapEvent>(other.Events);
+                Notes = new List<BeatMapNote>(other.Notes);
+                Obstacles = new List<BeatMapObstacle>(other.Obstacles);
+
+                //these could be left out of the if then since if they are null they will not appear. same for any like this in v3
+                Sliders = other.Sliders;//not altering these
+                Waypoints = other.Waypoints;//not altering these
+                CustomData = other.CustomData;//not altering these
+            }
+            else//v3 properties ---------------------------------
+            {
+                version = other.version;
+                bpmEvents = other.bpmEvents;
+
+                //convert to v2 so can use universally in the Generator
+                rotationEvents = other.rotationEvents;//there should be no rotation events unless the original map is 90degree
+                Events = other.rotationEvents.Select(rotationEvent => new BeatMapEvent
+                {
+                    time = rotationEvent.beat,
+                    type = (BeatmapEventData)((int)rotationEvent.spawnRotationEventType + 14),
+                    value = rotationEvent.rotation
+                }
+                ).ToList();
+
+                //convert to v2
+                colorNotes = other.colorNotes;
+                Notes = colorNotes.Select(colorNote => new BeatMapNote
+                {
+                    time = colorNote.beat,
+                    noteLineIndex = colorNote.xPosition,
+                    noteLineLayer = colorNote.yPosition,
+                    type = colorNote.color,
+                    noteCutDirection = colorNote.cutDirection
+                }
+                ).ToList();
+                //Notes = new List<BeatMapNote>(other.colorNotes);  
+
+                //convert to v2
+                obstacles = other.obstacles;
+                Obstacles = obstacles.Select(obstacles => new BeatMapObstacle
+                {
+                    time = obstacles.beat,
+                    noteLineIndex = obstacles.xPosition,
+                    type = (obstacles.yPosition == 2) ? ObstacleType.Top : ObstacleType.FullHeight,
+                    duration = obstacles.d,
+                    width = obstacles.w
+                }
+                ).ToList();
+                //Obstacles = new List<BeatMapObstacle>(other.obstacles);
+
+                bombNotes = other.bombNotes;//FIX
+                sliders = other.sliders;
+                burstSliders = other.burstSliders;
+                waypoints = other.waypoints;
+                basicBeatmapEvents = other.basicBeatmapEvents;
+                colorBoostBeatmapEvents = other.colorBoostBeatmapEvents;
+                lightColorEventBoxGroups = other.lightColorEventBoxGroups;
+                lightRotationEventBoxGroups = other.lightRotationEventBoxGroups;
+                lightTranslationEventBoxGroups = other.lightTranslationEventBoxGroups;
+                useNormalEventsAsCompatibleEvents = other.useNormalEventsAsCompatibleEvents;
+                customData = other.customData;
+
+            }
+
+            //containsCustomWalls = ContainsCustomWalls();//crashes exe to use this. tried it in BeatMap360Generator.cs also. same result.
         }
 
         public void AddRotationEvent(float time, int rotation, int type)
@@ -251,9 +306,9 @@ namespace Stx.ThreeSixtyfyer
             else
                 rotationEvent = SpawnRotationEventType.Late;
 
-            Events.Add(new BeatMapEventV3()
+            rotationEvents.Add(new BeatMapRotationEvent()
             {
-                time = time,
+                beat = time,
                 spawnRotationEventType = rotationEvent, // Update this to match version 3's enum
                 rotation = rotation
             });
@@ -288,13 +343,13 @@ namespace Stx.ThreeSixtyfyer
                 noteLineLayer = 2;//BW check this!
             }
 
-            Obstacles.Add(new BeatMapObstacleV3()
+            obstacles.Add(new BeatMapObstacleV3()
             {
-                time = time,
-                noteLineIndex = noteLineIndex,
-                noteLineLayer = noteLineLayer,
-                duration = duration,
-                width = width,
+                beat = time,
+                xPosition = noteLineIndex,
+                yPosition = noteLineLayer,
+                d = duration,
+                w = width,
                 height = height
             });
         }
@@ -379,13 +434,18 @@ namespace Stx.ThreeSixtyfyer
         [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object CustomData { get; set; }
 
-        [JsonProperty("_time")]
+        [JsonProperty("_time", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public float time { get; set; }//used by Sort method
 
-        [JsonProperty("_type")]
+        //public bool ShouldSerializetime()
+        //{ 
+        //    return true;// You can customize the condition here. In this example, we serialize if Time is not null.
+        //}
+
+        [JsonProperty("_type", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public BeatmapEventData type { get; set; }
 
-        [JsonProperty("_value")]
+        [JsonProperty("_value", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public int value { get; set; }
     }
 
@@ -394,12 +454,31 @@ namespace Stx.ThreeSixtyfyer
     {
 
     }
-
+    /*
     [Serializable]
     public class BeatMapEventV3 : BeatMapEvent
     {
+        [JsonProperty("customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object customData { get; set; }
+
         [JsonProperty("b")]
-        public float time { get; set; }//beat
+        public float beat { get; set; }//beat
+
+        [JsonProperty("e")]
+        public SpawnRotationEventType spawnRotationEventType { get; set; }//type
+
+        [JsonProperty("r")]
+        public int rotation { get; set; }//rotation
+    }
+    */
+    [Serializable]
+    public class BeatMapRotationEvent//v3
+    {
+        [JsonProperty("customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object customData { get; set; }
+
+        [JsonProperty("b")]
+        public float beat { get; set; }//beat
 
         [JsonProperty("e")]
         public SpawnRotationEventType spawnRotationEventType { get; set; }//type
@@ -435,18 +514,18 @@ namespace Stx.ThreeSixtyfyer
     {
 
     }
-
+    /*
     [Serializable]
     public class BeatMapNoteV3 : BeatMapNote
     {
         [JsonProperty("b")]
-        public float time { get; set; }//beat
+        public float beat { get; set; }//beat
 
         [JsonProperty("x")]
-        public int noteLineIndex { get; set; }
+        public int xPosition { get; set; }
 
         [JsonProperty("y")]
-        public int noteLineLayer { get; set; }
+        public int yPosition { get; set; }
 
         [JsonProperty("c")]
         public NoteType color { get; set; }//0 Red 1 Blue
@@ -457,6 +536,28 @@ namespace Stx.ThreeSixtyfyer
         [JsonProperty("a")]
         public int angleOffset { get; set; }//An integer number which represents the additional counter-clockwise angle offset applied to the note's cut direction in degrees
 
+    }
+    */
+    [Serializable]
+    public class BeatMapColorNote//v3
+    {
+        [JsonProperty("b")]
+        public float beat { get; set; }//beat
+
+        [JsonProperty("x")]
+        public int xPosition { get; set; }
+
+        [JsonProperty("y")]
+        public int yPosition { get; set; }
+
+        [JsonProperty("c")]
+        public NoteType color { get; set; }//0 Red 1 Blue
+
+        [JsonProperty("d")]
+        public NoteCutDirection cutDirection { get; set; }
+
+        [JsonProperty("a")]
+        public int angleOffset { get; set; }//An integer number which represents the additional counter-clockwise angle offset applied to the note's cut direction in degrees
     }
     /*
     //Not needed since just passing sliders with changes
@@ -532,24 +633,52 @@ namespace Stx.ThreeSixtyfyer
     {
 
     }
-
+    /*
     [Serializable]
     public class BeatMapObstacleV3 : BeatMapObstacle
     {
+        [JsonProperty("customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object customData { get; set; }
+
         [JsonProperty("b")]
-        public float time { get; set; }//beat
+        public float beat { get; set; }//beat
 
         [JsonProperty("x")]
-        public int noteLineIndex { get; set; }
+        public int xPosition { get; set; }
 
         [JsonProperty("y")]
-        public int noteLineLayer { get; set; }
+        public int yPosition { get; set; }
 
         [JsonProperty("d")]
-        public float duration { get; set; }
+        public float d { get; set; }
 
         [JsonProperty("w")]
-        public int width { get; set; }
+        public int w { get; set; }
+
+        [JsonProperty("h")]
+        public int height { get; set; }
+    }
+    */
+    [Serializable]
+    public class BeatMapObstacleV3
+    {
+        [JsonProperty("customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object customData { get; set; }
+
+        [JsonProperty("b")]
+        public float beat { get; set; }//beat
+
+        [JsonProperty("x")]
+        public int xPosition { get; set; }
+
+        [JsonProperty("y")]
+        public int yPosition { get; set; }
+
+        [JsonProperty("d")]
+        public float d { get; set; }
+
+        [JsonProperty("w")]
+        public int w { get; set; }
 
         [JsonProperty("h")]
         public int height { get; set; }

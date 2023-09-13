@@ -558,6 +558,7 @@ namespace Stx.ThreeSixtyfyer.Generators
 
             //FROM MASTER
             map.Sort();
+
             return map;
         }
     }
