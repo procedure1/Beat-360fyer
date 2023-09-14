@@ -83,7 +83,7 @@ namespace Stx.ThreeSixtyfyer
                 if (!info.AddGameModeDifficulty(newDiff, generator.GeneratedGameModeName, true))
                     continue;
 
-                newDiff.SaveBeatMap(info.mapDirectoryPath, generator.FromStandard(info.version, standardDiff.LoadBeatMap(info.mapDirectoryPath), info.beatsPerMinute, info.songTimeOffset));
+                newDiff.SaveBeatMap(info.mapDirectoryPath, generator.FromStandard(standardDiff.LoadBeatMap(info.mapDirectoryPath), info.beatsPerMinute, info.songTimeOffset));
                 result.generatedCount++;
             }
             if (result.generatedCount == 0)
@@ -135,7 +135,7 @@ namespace Stx.ThreeSixtyfyer
                 if (!info.AddGameModeDifficulty(newDiff, generator.GeneratedGameModeName, true)) // always replace when making a copy
                     continue;
 
-                newDiff.SaveBeatMap(mapDestination, generator.FromStandard(info.version,standardDiff.LoadBeatMap(info.mapDirectoryPath), info.beatsPerMinute, info.songTimeOffset));
+                newDiff.SaveBeatMap(mapDestination, generator.FromStandard(standardDiff.LoadBeatMap(info.mapDirectoryPath), info.beatsPerMinute, info.songTimeOffset));
                 result.generatedCount++;
             }
             if (result.generatedCount == 0)

@@ -28,7 +28,7 @@ namespace Stx.ThreeSixtyfyer.Generators
             return f - i >= 0.999f ? i + 1 : i;
         }
 
-        public BeatMapData FromStandard(string mapVersion, BeatMapData standardMap, float bpm, float timeOffset)
+        public BeatMapData FromStandard(BeatMapData standardMap, float bpm, float timeOffset)
         {
             //FROM MASTER
             BeatMap360GeneratorSettings settings = (BeatMap360GeneratorSettings)Settings;
@@ -58,18 +58,16 @@ namespace Stx.ThreeSixtyfyer.Generators
 
             //BW TEST 2 *************************************************************
             //Try to avoid huge rotations on fast maps by altering the preferred bar duration depending on the speed of the average notes per sec
-            //BW FIX!
-            float averageNPS = map.Notes.Count / 4000f;// LevelUpdatePatcher.SongDuration;
 
-            if (averageNPS <= 2.0f)
+            if (BeatMapData.AverageNPS <= 2.0f)
             {
                 settings.PreferredBarDuration = 1.7f;
             }
-            else if (averageNPS <= 4.0f)
+            else if (BeatMapData.AverageNPS <= 4.0f)
             {
                 settings.PreferredBarDuration = 1.84f;
             }
-            else if (averageNPS <= 4.5f)
+            else if (BeatMapData.AverageNPS <= 4.5f)
             {
                 settings.PreferredBarDuration = 2.25f;
             }
@@ -77,7 +75,7 @@ namespace Stx.ThreeSixtyfyer.Generators
             {
                 settings.PreferredBarDuration = 2.5f;
             }
-            Debug.WriteLine($"averageNPS: {averageNPS}\tPreferredBarDuration: {settings.PreferredBarDuration}");
+            Debug.WriteLine($"averageNPS: {BeatMapData.AverageNPS}\tPreferredBarDuration: {settings.PreferredBarDuration}");
 
             //Each rotation is 15 degree increments so 24 positive rotations is 360. Negative numbers rotate to the left, positive to the right
             void Rotate(float time, int amount, int type, bool enableLimit = true)
@@ -526,19 +524,39 @@ namespace Stx.ThreeSixtyfyer.Generators
                 }
 
             }
-            
+
             // Remove bombs (just problamatic ones)
             // ToList() is used so the Remove operation does not update the list that is being iterated
-            foreach (BeatMapNote bomb in map.Notes.Where((e) => e.noteCutDirection == NoteCutDirection.None).ToList())
+            if (BeatMapData.MajorVersion == 2)
             {
-                foreach ((float cutTime, int cutAmount) in wallCutMoments)
+                foreach (BeatMapNote bomb in map.Notes.Where((e) => e.noteCutDirection == NoteCutDirection.None).ToList())
                 {
-                    if (bomb.time >= cutTime - settings.WallFrontCut && bomb.time < cutTime + settings.WallBackCut)
+                    foreach ((float cutTime, int cutAmount) in wallCutMoments)
                     {
-                        if ((bomb.noteLineIndex <= 2 && cutAmount < 0) || (bomb.noteLineIndex >= 1 && cutAmount > 0))
+                        if (bomb.time >= cutTime - settings.WallFrontCut && bomb.time < cutTime + settings.WallBackCut)
                         {
-                            // Will be removed later
-                            map.Notes.Remove(bomb);
+                            if ((bomb.noteLineIndex <= 2 && cutAmount < 0) || (bomb.noteLineIndex >= 1 && cutAmount > 0))
+                            {
+                                map.Notes.Remove(bomb);// Will be removed later
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                List<BeatMapBombNote> bombNotesCopy = new List<BeatMapBombNote>(map.bombNotes);//create a new list so can iterate and remove items
+
+                foreach (BeatMapBombNote bomb in bombNotesCopy)
+                {
+                    foreach ((float cutTime, int cutAmount) in wallCutMoments)
+                    {
+                        if (bomb.beat >= cutTime - settings.WallFrontCut && bomb.beat < cutTime + settings.WallBackCut)
+                        {
+                            if ((bomb.xPosition <= 2 && cutAmount < 0) || (bomb.xPosition >= 1 && cutAmount > 0))
+                            {
+                                map.bombNotes.Remove(bomb);// Will be removed later
+                            }
                         }
                     }
                 }
@@ -558,7 +576,6 @@ namespace Stx.ThreeSixtyfyer.Generators
 
             //FROM MASTER
             map.Sort();
-
             return map;
         }
     }

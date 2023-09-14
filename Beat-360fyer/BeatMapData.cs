@@ -82,14 +82,22 @@ namespace Stx.ThreeSixtyfyer
     [Serializable]
     public class BeatMapData//base for v2 & v3 maps
     {
-        private int MajorVersion = 0;
+        public static int MajorVersion = 0;
+
+        public bool ShouldSerializeMajorVersion()
+        { return false; }//Hides from serization into the json file
+
+        public static float AverageNPS = 0;
+
+        public bool ShouldSerializeAverageNPS()
+        { return false; }// Return true to include Events when MajorVersion is 2, false otherwise
 
         //v2 elements-----------------------------------------------------------
 
-        [JsonProperty("_version", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [JsonProperty("_version", DefaultValueHandling = DefaultValueHandling.Ignore)]//adding this will remove _events if its empty otherwise if its missing from the doc will say "null" if no customdata
         public string Version { get; set; }
 
-        [JsonProperty("_events", DefaultValueHandling = DefaultValueHandling.Ignore)]//adding this will remove _events if its empty otherwise if its missing from the doc will say "null" if no customdata
+        [JsonProperty("_events", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public List<BeatMapEvent> Events { get; set; }
 
         [JsonProperty("_notes", DefaultValueHandling = DefaultValueHandling.Ignore)]
@@ -132,7 +140,8 @@ namespace Stx.ThreeSixtyfyer
         public List<BeatMapColorNote> colorNotes { get; set; }
 
         [JsonProperty("bombNotes", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public object bombNotes { get; set; }
+        public List<BeatMapBombNote> bombNotes { get; set; }
+        //public object bombNotes { get; set; }
 
         [JsonProperty("obstacles", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public List<BeatMapObstacleV3> obstacles { get; set; }
@@ -253,7 +262,18 @@ namespace Stx.ThreeSixtyfyer
                 ).ToList();
                 //Obstacles = new List<BeatMapObstacle>(other.obstacles);
 
-                bombNotes = other.bombNotes;//FIX
+                //bombNotes = other.bombNotes;
+                bombNotes = new List<BeatMapBombNote>(other.bombNotes);
+                /*bombNotes = bombNotes.Select(bombNotes => new BeatMapBombNote
+                {
+                    time = obstacles.beat,
+                    noteLineIndex = obstacles.xPosition,
+                    type = (obstacles.yPosition == 2) ? ObstacleType.Top : ObstacleType.FullHeight,
+                    duration = obstacles.d,
+                    width = obstacles.w
+                }
+                ).ToList();*/
+
                 sliders = other.sliders;
                 burstSliders = other.burstSliders;
                 waypoints = other.waypoints;
@@ -266,6 +286,9 @@ namespace Stx.ThreeSixtyfyer
                 customData = other.customData;
 
             }
+
+            float SongDuration = Notes.OrderByDescending(n => n.time).Select(n => n.time).FirstOrDefault();
+            AverageNPS = Notes.Count / SongDuration;
 
             //containsCustomWalls = ContainsCustomWalls();//crashes exe to use this. tried it in BeatMap360Generator.cs also. same result.
         }
@@ -434,13 +457,11 @@ namespace Stx.ThreeSixtyfyer
         [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object CustomData { get; set; }
 
-        [JsonProperty("_time", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [JsonProperty("_time")]//was having problems with time=0 not appearing if i use DefaultValueHandling.Ignore may only be a problem for floats that are 0.0 and not for ints ect
         public float time { get; set; }//used by Sort method
 
         //public bool ShouldSerializetime()
-        //{ 
-        //    return true;// You can customize the condition here. In this example, we serialize if Time is not null.
-        //}
+        //{ return BeatMapData.MajorVersion == 2; }//time should appear in v2 maps not matter what value (even 0)
 
         [JsonProperty("_type", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public BeatmapEventData type { get; set; }
@@ -682,5 +703,18 @@ namespace Stx.ThreeSixtyfyer
 
         [JsonProperty("h")]
         public int height { get; set; }
+    }
+
+    [Serializable]
+    public class BeatMapBombNote
+    {
+        [JsonProperty("b")]
+        public float beat { get; set; }
+
+        [JsonProperty("x")]
+        public int xPosition { get; set; }
+
+        [JsonProperty("y")]
+        public int yPosition { get; set; }
     }
 }
