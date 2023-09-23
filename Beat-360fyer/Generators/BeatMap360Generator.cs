@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Media;
 
 namespace Stx.ThreeSixtyfyer.Generators
 {
@@ -58,25 +59,37 @@ namespace Stx.ThreeSixtyfyer.Generators
 
             //BW TEST 2 *************************************************************
             //Try to avoid huge rotations on fast maps by altering the preferred bar duration depending on the speed of the average notes per sec
-
+            #region Avoid Huge Rotations
+            /*
             if (BeatMapData.AverageNPS <= 2.0f)
             {
                 settings.PreferredBarDuration = 1.7f;
             }
-            else if (BeatMapData.AverageNPS <= 4.0f)
+            else if (BeatMapData.AverageNPS <= 3.0f)
             {
                 settings.PreferredBarDuration = 1.84f;
             }
-            else if (BeatMapData.AverageNPS <= 4.5f)
+            else if (BeatMapData.AverageNPS <= 3.5f)
+            {
+                settings.PreferredBarDuration = 2.0f;
+            }
+            else if (BeatMapData.AverageNPS <= 4.0f)
             {
                 settings.PreferredBarDuration = 2.25f;
+            }
+            else if (BeatMapData.AverageNPS <= 4.5f)
+            {
+                settings.PreferredBarDuration = 2.5f;
             }
             else
             {
                 settings.PreferredBarDuration = 2.5f;
             }
             Debug.WriteLine($"averageNPS: {BeatMapData.AverageNPS}\tPreferredBarDuration: {settings.PreferredBarDuration}");
+            */
+            #endregion
 
+            #region Rotate
             //Each rotation is 15 degree increments so 24 positive rotations is 360. Negative numbers rotate to the left, positive to the right
             void Rotate(float time, int amount, int type, bool enableLimit = true)
             {
@@ -88,7 +101,7 @@ namespace Stx.ThreeSixtyfyer.Generators
                 if (amount > 4)
                     amount = 4;
 
-                if (enableLimit)
+                if (enableLimit)//always true unless you enableSpin in settings
                 {
                     if (totalRotation + amount > settings.LimitRotations)
                         amount = Math.Min(amount, Math.Max(0, settings.LimitRotations - totalRotation));
@@ -104,12 +117,16 @@ namespace Stx.ThreeSixtyfyer.Generators
                 eventCount++;
                 wallCutMoments.Add((time, amount));
 
+                float beat = time * bpm / 60f;
+
                 //BW Discord help said to change InsertBeatmapEventData to InsertBeatmapEventDataInOrder which allowed content to be stored to data.
                 //data.InsertBeatmapEventDataInOrder(new SpawnRotationBeatmapEventData(time, moment, amount * 15.0f));// * RotationAngleMultiplier));//discord suggestion         
-                map.AddRotationEvent(time, amount * 15, type);
+                map.AddRotationEvent(beat, amount, type);
+                Debug.WriteLine($"Time: {time}, Rotation: {amount}, Type: {type}");
             }
+            #endregion
 
-            float beatDuration = 60f / bpm;
+            float beatDuration = 60f / bpm;//sec
 
             // Align PreferredBarDuration to beatDuration
             float barLength = beatDuration;
@@ -118,15 +135,30 @@ namespace Stx.ThreeSixtyfyer.Generators
             while (barLength < settings.PreferredBarDuration * 0.75f / settings.RotationSpeedMultiplier)
                 barLength *= 2f;
 
-            //Debug.WriteLine($"PreferredBarDuration: {PreferredBarDuration}");
+            Debug.WriteLine($"PreferredBarDuration: {settings.PreferredBarDuration}");
 
 
-            List<BeatMapNote> notes = map.Notes;//PLUGIN List<NoteData> notes = dataItems.OfType<NoteData>().ToList();
-
+            List<BeatMapNote> notes = new List<BeatMapNote>();//time is in beats. can see beats are used in JSON file. PLUGIN List<NoteData> notes = dataItems.OfType<NoteData>().ToList();
             List<BeatMapNote> notesInBar = new List<BeatMapNote>();
             List<BeatMapNote> notesInBarBeat = new List<BeatMapNote>();
 
+            //PLUGIN CODE -- The plugin inside Beat Saber works in seconds not in beats so need to convert to seconds to work with this code. use the following code to avoid altering map.notes since it will reference it otherwise
+            for (int i = 0; i < map.Notes.Count; i++)
+            {
+                BeatMapNote originalNote = map.Notes[i];
+                BeatMapNote newNote = new BeatMapNote
+                {
+                    time = originalNote.time * beatDuration, // Convert time from beats to seconds
+                    noteLineIndex = originalNote.noteLineIndex,
+                    noteLineLayer = originalNote.noteLineLayer,
+                    type = originalNote.type,
+                    noteCutDirection = originalNote.noteCutDirection,
+                    CustomData = originalNote.CustomData // You can also create a deep copy of custom data if required
+                };
+                notes.Add(newNote);
+            }
             // Align bars to first note, the first note (almost always) identifies the start of the first bar
+            //Notes are read in beats not sec. time = beat * 60 / bpm;
             float firstBeatmapNoteTime = notes[0].time;
 
 #if DEBUG
@@ -168,6 +200,10 @@ namespace Stx.ThreeSixtyfyer.Generators
                     float spinStep = settings.TotalSpinTime / 24;
                     for (int s = 0; s < 24; s++)//amount (spinDirectin) is either -1 or 1
                     {
+                        float theTime = firstBeatmapNoteTime + currentBarStart + spinStep * s;
+
+                        //EnableSpin is FALSE in the settings. So this never runs.
+                        Debug.WriteLine($"Spin Rotate--- Time: {theTime} Rotation: {spinDirection * 15.0f} Type: {(int)BeatmapEventData.Early}");
                         Rotate(firstBeatmapNoteTime + currentBarStart + spinStep * s, spinDirection, (int)BeatmapEventData.Early, false);
                     }
 
@@ -240,12 +276,14 @@ namespace Stx.ThreeSixtyfyer.Generators
                     int rotationCount = 1;
                     if (afterLastNote != null)
                     {
-                        float timeDiff = afterLastNote.time - lastNote.time;
+                        double barLength8thRound = Math.Round(barLength / 8, 4);
+                        double timeDiff = Math.Round(Math.Round(afterLastNote.time, 4) - Math.Round(lastNote.time, 4), 4);
+
                         if (notesInBarBeat.Count >= 1)
                         {
                             if (timeDiff >= barLength)
                                 rotationCount = 3;
-                            else if (timeDiff >= barLength / 8)
+                            else if (timeDiff >= barLength8thRound)//barLength / 8)
                                 rotationCount = 2;
                         }
                     }
@@ -299,10 +337,13 @@ namespace Stx.ThreeSixtyfyer.Generators
                         rotationCount = -rotationCount;
                     }
 
+                    Debug.WriteLine($"k: {k} rotationCount: {rotationCount} totalRotation: {totalRotation}");
+
                     //***********************************
                     //Finally rotate - possible values here are -3,-2,-1,0,1,2,3 but in testing I only see -2 to 2
                     //The condition for setting rotationCount to 3 is that timeDiff (the time difference between afterLastNote and lastNote) is greater than or equal to barLength. If your test data rarely or never satisfies this condition, you won't see rotation values of -3 or 3.
                     //Similarly, the condition for setting rotationCount to 2 is that timeDiff is greater than or equal to barLength / 8. If this condition is rarely met in your test cases, it would explain why you mostly see rotation values of - 2, -1, 0, 1, or 2.
+                    Debug.WriteLine($"Finally Rotate--- Time: {lastNote.time} Rotation: {rotation * 15} Type: {(int)BeatmapEventData.Late}");
                     Rotate(lastNote.time, rotation, (int)BeatmapEventData.Late);
 
                     Debug.WriteLine($"Total Rotations: {totalRotation * 15} Time: {lastNote.time} Rotation: {rotation * 15}");
@@ -583,7 +624,8 @@ namespace Stx.ThreeSixtyfyer.Generators
     [Serializable]
     public class BeatMap360GeneratorSettings
     {
-        public bool Wireless360 { get; set; } = true;//LimitRotations = 99999;BottleneckRotations = 99999;
+        //don't need this. a person should just set LimitRotations to the angle they prefer.
+        //public bool Wireless360 { get; set; } = true;//LimitRotations = 99999;BottleneckRotations = 99999;
         
         //FROM PLUGIN
         /// <summary>
@@ -593,17 +635,17 @@ namespace Stx.ThreeSixtyfyer.Generators
         /// BW CREATED CONFIG ROTATION  SPEED to allow user to set this.
         /// </summary>
         
-        [JsonIgnore]//won't show up in the user config file - not working
-        public float PreferredBarDuration { get; set; } = 1.84f;//BW I like 1.5f instead of 1.84f but very similar to changing LimitRotations, 1.0f is too much and 0.2f freezes beat saber  // Calculated from 130 bpm, which is a pretty standard bpm (60 / 130 bpm * 4 whole notes per bar ~= 1.84)
+        [JsonIgnore]//won't show up in the user config file
+        public float PreferredBarDuration { get; set; } = 2.75f;//BW I like 1.5f instead of 1.84f but very similar to changing LimitRotations, 1.0f is too much and 0.2f freezes beat saber  // Calculated from 130 bpm, which is a pretty standard bpm (60 / 130 bpm * 4 whole notes per bar ~= 1.84)
         public float RotationSpeedMultiplier { get; set; } = 1.0f;//BW This is a mulitplyer for PreferredBarDuration
         /// <summary>
         /// The amount of 15 degree rotations before stopping rotation events (rip cable otherwise) (24 is one full 360 rotation)
         /// </summary>
-        public int LimitRotations { get; set; } = 28;//BW 24 is equivalent to 360 (24*15) so this is 420 degrees.
+        public int LimitRotations { get; set; } = 10000;//BW a large number here in degress is the same as wirelesss 360. 24 is equivalent to 360 (24*15) so this is 420 degrees.
         /// <summary>
-        /// The amount of rotations before preferring the other direction (24 is one full rotation)
+        /// The amount of rotations before preferring the other direction (24 is one full rotation) - USER should set this to LimitRotations/2 if plant to limit rotations.
         /// </summary>
-        public int BottleneckRotations { get; set; } = 14; //BW 14 default. This is set by LevelUpdatePatcher which sets this to LimitRotations/2
+        public int BottleneckRotations { get; set; } = 10000;//BW 14 default. This is set by LevelUpdatePatcher which sets this to LimitRotations/2
         /// <summary>
         /// Enable the spin effect when no notes are coming.
         /// </summary>

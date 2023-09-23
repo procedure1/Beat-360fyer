@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -21,7 +22,7 @@ namespace Stx.ThreeSixtyfyer
         Late = 15
     }
 
-    public enum NoteCutDirection //v2 & v3
+    public enum NoteCutDirection //v2 & v3 (see None in the code but the formating site only lists 0-8 and doesn't include none)
     {
         Up,
         Down,
@@ -293,17 +294,17 @@ namespace Stx.ThreeSixtyfyer
             //containsCustomWalls = ContainsCustomWalls();//crashes exe to use this. tried it in BeatMap360Generator.cs also. same result.
         }
 
-        public void AddRotationEvent(float time, int rotation, int type)
+        public void AddRotationEvent(float beat, int amount, int type)
         {
-            if (rotation == 0)
+            if (amount == 0)
                 return;
 
             if (MajorVersion == 2)
-                AddRotationEventV2(time, rotation, type);
+                AddRotationEventV2(beat, amount, type);
             else
-                AddRotationEventV3(time, rotation, type);
+                AddRotationEventV3(beat, amount, type);
         }
-        public void AddRotationEventV2(float time, int rotation, int type = 15)
+        public void AddRotationEventV2(float beat, int amount, int type = 15)
         {
             BeatmapEventData rotationEvent;
 
@@ -312,14 +313,48 @@ namespace Stx.ThreeSixtyfyer
             else
                 rotationEvent = BeatmapEventData.Late;
 
+            //value 0 = -60, 1 = -45, 2 = -30, 3 = -15, 4 = 15, 5 = 30, 6 = 45, 7 = 60 degrees clockwise
+            int theValue;
+
+            switch (amount)
+            {
+                case -4:
+                    theValue = 0;
+                    break;
+                case -3:
+                    theValue = 1;
+                    break;
+                case -2:
+                    theValue = 2;
+                    break;
+                case -1:
+                    theValue = 3;
+                    break;
+                case 1:
+                    theValue = 4;
+                    break;
+                case 2:
+                    theValue = 5;
+                    break;
+                case 3:
+                    theValue = 6;
+                    break;
+                case 4:
+                    theValue = 7;
+                    break;
+                default:
+                    theValue = -1; // Set a default value if necessary - no rotation
+                    break;
+            }
+
             Events.Add(new BeatMapEventV2()
             {
-                time = time,
+                time = beat,
                 type = rotationEvent,
-                value = rotation
+                value = theValue
             });
         }
-        public void AddRotationEventV3(float time, int rotation, int type = 2)
+        public void AddRotationEventV3(float theBeat, int amount, int type = 2)
         {
             SpawnRotationEventType rotationEvent;
 
@@ -331,9 +366,9 @@ namespace Stx.ThreeSixtyfyer
 
             rotationEvents.Add(new BeatMapRotationEvent()
             {
-                beat = time,
+                beat = theBeat,
                 spawnRotationEventType = rotationEvent, // Update this to match version 3's enum
-                rotation = rotation
+                rotation = amount * 15
             });
         }
         public void AddWall(float time, int noteLineIndex, ObstacleType type, int noteLineLayer, float duration, int width, int height = 5)
@@ -457,17 +492,23 @@ namespace Stx.ThreeSixtyfyer
         [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object CustomData { get; set; }
 
-        [JsonProperty("_time")]//was having problems with time=0 not appearing if i use DefaultValueHandling.Ignore may only be a problem for floats that are 0.0 and not for ints ect
-        public float time { get; set; }//used by Sort method
+        [JsonProperty("_time")]//was having problems with time=0 not appearing if i use DefaultValueHandling.Ignore. but will appear in v3 maps if don't use "shoudlserialize"
+        public float time { get; set; }//used by Sort method -- should be in beats
 
-        //public bool ShouldSerializetime()
-        //{ return BeatMapData.MajorVersion == 2; }//time should appear in v2 maps not matter what value (even 0)
+        public bool ShouldSerializetime()
+        { return BeatMapData.MajorVersion == 2; }//time should appear in v2 maps not matter what value (even 0)
 
-        [JsonProperty("_type", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [JsonProperty("_type")]//, DefaultValueHandling = DefaultValueHandling.Ignore)]
         public BeatmapEventData type { get; set; }
 
-        [JsonProperty("_value", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public bool ShouldSerializetype()
+        { return BeatMapData.MajorVersion == 2; }//time should appear in v2 maps not matter what value (even 0)
+
+        [JsonProperty("_value")]//, DefaultValueHandling = DefaultValueHandling.Ignore)]
         public int value { get; set; }
+
+        public bool ShouldSerializevalue()
+        { return BeatMapData.MajorVersion == 2; }//time should appear in v2 maps not matter what value (even 0)
     }
 
     [Serializable]
