@@ -277,13 +277,13 @@ namespace Stx.ThreeSixtyfyer.Generators
                     if (afterLastNote != null)
                     {
                         double barLength8thRound = Math.Round(barLength / 8, 4);
-                        double timeDiff = Math.Round(Math.Round(afterLastNote.time, 4) - Math.Round(lastNote.time, 4), 4);
+                        double timeDiff = Math.Round(Math.Round(afterLastNote.time, 4) - Math.Round(lastNote.time, 4), 4);//BW without any rounding or rounding to 5 or more digits still produces a different rotation between exe and plugin.
 
                         if (notesInBarBeat.Count >= 1)
                         {
-                            if (timeDiff >= barLength)
+                            if (timeDiff >= barLength)//BW this never happens are far as I can tell.
                                 rotationCount = 3;
-                            else if (timeDiff >= barLength8thRound)//barLength / 8)
+                            else if (timeDiff >= barLength8thRound)//barLength / 8)//BW ---- This is the place where exe vs plugin maps will differ due to rounding between the 2 applications. i added rounding to 4 digits in order to match the output between the 2
                                 rotationCount = 2;
                         }
                     }
