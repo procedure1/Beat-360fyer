@@ -11,7 +11,7 @@ namespace Stx.ThreeSixtyfyer
 {
     public class GitHubBasedUpdateCheck
     {
-        //https://raw.githubusercontent.com/CodeStix/Beat-360fyer/master/Build/latestVersion.txt
+        //https://raw.githubusercontent.com/procedure1/Beat-360fyer/master/Build/latestVersion.txt
 
         public string repoOwner;
         public string repoName;

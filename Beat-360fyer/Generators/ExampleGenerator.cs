@@ -2,39 +2,39 @@
 using System.Linq;
 
 namespace Stx.ThreeSixtyfyer.Generators
-{/*
+{
     [BeatMapGenerator("Example 90Degree Generator", 3, "CodeStix", "This simple generator just swings to the left and to the right each x seconds.\n" +
         "This is to showcase how a generator is made.\n" +
-        "Want to create your own? Check the GitHub page for instructions.")]
+        "Follow this example to create your own.")]
     public class ExampleGenerator : IBeatMapGenerator
     {
         public string GeneratedGameModeName => "90Degree";
         public object Settings { get; set; } = new ExampleGeneratorSettings(); // Set the default settings
 
-        public BeatMap FromStandard(BeatMap standard, float bpm, float timeOffset)
+        public BeatMapData FromStandard(BeatMapData standard, float bpm, float timeOffset, string author)
         {
             ExampleGeneratorSettings settings = (ExampleGeneratorSettings)Settings;
-            BeatMap modified = new BeatMap(standard); // Copy the original map
+            BeatMapData map = new BeatMapData(standard, bpm); // Copy the original map
 
             // Implement your generator's logic
             int direction = 0;
-            for(int i = 0; i < modified.notes.Count; i++)
+            for(int i = 0; i < map.Notes.Count; i++)
             {
-                BeatMapNote currentNote = modified.notes[i];
+                BeatMapNote currentNote = map.Notes[i];
                 if (i % settings.rotateEachNoteCount == 0)
                 {
-                    if (++direction % settings.rotateCountPerDirectionSwitch < settings.rotateCountPerDirectionSwitch / 2)
-                        modified.AddGoLeftEvent(currentNote.time, 1);
+                    if (++direction % settings.rotateCountPerDirectionSwitch < settings.rotateCountPerDirectionSwitch / 2)//Each rotation amount is a 15 degree increment step so 24 positive rotations is 360. Negative numbers rotate to the left, positive to the right
+                        map.AddRotationEvent(currentNote.time, 1, (int)BeatmapEventType.Late);
                     else
-                        modified.AddGoRightEvent(currentNote.time, 1);
+                        map.AddRotationEvent(currentNote.time, -1, (int)BeatmapEventType.Late);
                 }
             }
 
             // Sort the BeatMap so that the inserted rotation events are in the right spot and not appended at the end of the events list
-            modified.Sort();
+            map.SortAndConvertToBeats(bpm);
 
             // Return the modfied BeatMap
-            return modified;
+            return map;
         }
     }
 
@@ -70,6 +70,5 @@ namespace Stx.ThreeSixtyfyer.Generators
             }
             return hash;
         }
-    }*/
-        
+    }
 }

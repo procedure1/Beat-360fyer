@@ -2,11 +2,7 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Drawing;
 using System.Linq;
-using System.Windows.Controls;
-using static Stx.ThreeSixtyfyer.BeatMapGenerator;
 
 namespace Stx.ThreeSixtyfyer
 {
@@ -16,8 +12,9 @@ namespace Stx.ThreeSixtyfyer
         Late
     }
 
-    public enum BeatmapEventData //v2 should be called BeatmapEventData since rotations and lighting events are all part of the same thing.
+    public enum BeatmapEventType //v2 should be called BeatmapEventData since rotations and lighting events are all part of the same thing.
     {
+        BoostColors = 5,
         Early = 14,
         Late = 15
     }
@@ -33,7 +30,7 @@ namespace Stx.ThreeSixtyfyer
         DownLeft,
         DownRight,
         Any,
-        None
+        None//don't use this for bombs
     }
 
     public enum NoteLineLayer //v2 & v3
@@ -54,7 +51,7 @@ namespace Stx.ThreeSixtyfyer
         NoteA = 0,//Red left
         NoteB = 1,//Blue right
         GhostNote = 2,//or Unused
-        Bomb = 3,
+        Bomb = 3,//USE THIS FOR v2 BOMBS
         None = -1
     }
     public enum GameplayType //v3
@@ -93,6 +90,8 @@ namespace Stx.ThreeSixtyfyer
         public bool ShouldSerializeAverageNPS()
         { return false; }// Return true to include Events when MajorVersion is 2, false otherwise
 
+        public static bool AlreadyUsingEnvColorBoost = false;
+
         //v2 elements-----------------------------------------------------------
 
         [JsonProperty("_version", DefaultValueHandling = DefaultValueHandling.Ignore)]//adding this will remove _events if its empty otherwise if its missing from the doc will say "null" if no customdata
@@ -105,7 +104,7 @@ namespace Stx.ThreeSixtyfyer
         public List<BeatMapNote> Notes { get; set; }
 
         [JsonProperty("_sliders", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public object Sliders { get; set; }//List<BeatMapSlider> Sliders { get; set; }//instroduced v2.6
+        public List<BeatMapSlider> Sliders { get; set; }//instroduced v2.6
 
         [JsonProperty("_obstacles", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public List<BeatMapObstacle> Obstacles { get; set; }
@@ -148,7 +147,7 @@ namespace Stx.ThreeSixtyfyer
         public List<BeatMapObstacleV3> obstacles { get; set; }
 
         [JsonProperty("sliders", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public object sliders { get; set; }
+        public List<BeatMapSliderV3> sliders { get; set; }
 
         [JsonProperty("burstSliders", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object burstSliders { get; set; }
@@ -160,7 +159,7 @@ namespace Stx.ThreeSixtyfyer
         public object basicBeatmapEvents { get; set; }
 
         [JsonProperty("colorBoostBeatmapEvents", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public object colorBoostBeatmapEvents { get; set; }
+        public List<ColorBoostBeatmapEvents> boostEvents { get; set; }
 
         [JsonProperty("lightColorEventBoxGroups", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object lightColorEventBoxGroups { get; set; }
@@ -184,7 +183,7 @@ namespace Stx.ThreeSixtyfyer
 
         public BeatMapData() { }
 
-        public BeatMapData(BeatMapData other)
+        public BeatMapData(BeatMapData other, float bpm)
         {
             // Split the mapVersion string by '.' to extract major version number.
             string[] versionParts;
@@ -214,11 +213,35 @@ namespace Stx.ThreeSixtyfyer
                 Version = other.Version;
 
                 Events = new List<BeatMapEvent>(other.Events);
+                
+                foreach (var beatMapEvent in Events)//convert beats to seconds since plugin code in generator is made using seconds. beat saber gives the data in seconds even though the map is written in beats
+                {beatMapEvent.time *= (60 / bpm);
+                    if (beatMapEvent.type == BeatmapEventType.BoostColors && beatMapEvent.value == 1)
+                        AlreadyUsingEnvColorBoost = true;
+                }
+
                 Notes = new List<BeatMapNote>(other.Notes);
+
+                foreach (var note in Notes)
+                {note.time *= (60 / bpm); }
+
                 Obstacles = new List<BeatMapObstacle>(other.Obstacles);
+                foreach (var obstacle in Obstacles)
+                { obstacle.time *= (60 / bpm);
+                  obstacle.duration *= (60 / bpm);}
+                
+                if (other.Sliders != null)
+                {
+                    Sliders = new List<BeatMapSlider>(other.Sliders);
+                    foreach (var slider in Sliders)
+                    {
+                        slider.time *= (60 / bpm);
+                        slider.tailTime *= (60 / bpm);
+                    }
+                }
 
                 //these could be left out of the if then since if they are null they will not appear. same for any like this in v3
-                Sliders = other.Sliders;//not altering these
+                //Sliders = other.Sliders;//not altering these
                 Waypoints = other.Waypoints;//not altering these
                 CustomData = other.CustomData;//not altering these
             }
@@ -228,11 +251,11 @@ namespace Stx.ThreeSixtyfyer
                 bpmEvents = other.bpmEvents;
 
                 //convert to v2 so can use universally in the Generator
-                rotationEvents = other.rotationEvents;//there should be no rotation events unless the original map is 90degree
+                rotationEvents = other.rotationEvents;//there should be no rotation events unless the original map is 90degree. if there are, then converts to seconds
                 Events = other.rotationEvents.Select(rotationEvent => new BeatMapEvent
                 {
-                    time = rotationEvent.beat,
-                    type = (BeatmapEventData)((int)rotationEvent.spawnRotationEventType + 14),
+                    time = rotationEvent.beat *= (60 / bpm),
+                    type = (BeatmapEventType)((int)rotationEvent.spawnRotationEventType + 14),
                     value = rotationEvent.rotation
                 }
                 ).ToList();
@@ -241,11 +264,12 @@ namespace Stx.ThreeSixtyfyer
                 colorNotes = other.colorNotes;
                 Notes = colorNotes.Select(colorNote => new BeatMapNote
                 {
-                    time = colorNote.beat,
+                    time = colorNote.beat *= (60 / bpm),
                     noteLineIndex = colorNote.xPosition,
                     noteLineLayer = colorNote.yPosition,
                     type = colorNote.color,
-                    noteCutDirection = colorNote.cutDirection
+                    noteCutDirection = colorNote.cutDirection,
+                    angleOffset = colorNote.angleOffset
                 }
                 ).ToList();
                 //Notes = new List<BeatMapNote>(other.colorNotes);  
@@ -254,17 +278,42 @@ namespace Stx.ThreeSixtyfyer
                 obstacles = other.obstacles;
                 Obstacles = obstacles.Select(obstacles => new BeatMapObstacle
                 {
-                    time = obstacles.beat,
+                    time = obstacles.beat *= (60 / bpm),
                     noteLineIndex = obstacles.xPosition,
                     type = (obstacles.yPosition == 2) ? ObstacleType.Top : ObstacleType.FullHeight,
-                    duration = obstacles.d,
+                    duration = obstacles.d *= (60 / bpm),
                     width = obstacles.w
                 }
                 ).ToList();
                 //Obstacles = new List<BeatMapObstacle>(other.obstacles);
 
+                sliders = other.sliders;
+                Sliders = sliders.Select(sliders => new BeatMapSlider
+                {
+                    time     = sliders.beat     *= (60 / bpm),
+                    tailTime = sliders.tailBeat *= (60 / bpm)
+                }
+                ).ToList();
+
+                //If there are boost events then don't need to read them or use them so don't need to convert beats to time
+                /*
+                boostEvents = other.boostEvents;
+                boostEvents = boostEvents.Select(boostEvents => new ColorBoostBeatmapEvents
+                {
+                    beat = boostEvents.beat *= (60 / bpm)
+                }
+                ).ToList();
+                */
+                boostEvents = other.boostEvents;
+                AlreadyUsingEnvColorBoost = boostEvents.Any(boostEvent =>
+                    boostEvent.on == 1
+                );
+
                 //bombNotes = other.bombNotes;
                 bombNotes = new List<BeatMapBombNote>(other.bombNotes);
+                foreach (var bomb in bombNotes)
+                { bomb.beat *= (60 / bpm); }
+
                 /*bombNotes = bombNotes.Select(bombNotes => new BeatMapBombNote
                 {
                     time = obstacles.beat,
@@ -275,11 +324,11 @@ namespace Stx.ThreeSixtyfyer
                 }
                 ).ToList();*/
 
-                sliders = other.sliders;
+                //sliders = other.sliders;
                 burstSliders = other.burstSliders;
                 waypoints = other.waypoints;
                 basicBeatmapEvents = other.basicBeatmapEvents;
-                colorBoostBeatmapEvents = other.colorBoostBeatmapEvents;
+                //colorBoostBeatmapEvents = other.colorBoostBeatmapEvents;
                 lightColorEventBoxGroups = other.lightColorEventBoxGroups;
                 lightRotationEventBoxGroups = other.lightRotationEventBoxGroups;
                 lightTranslationEventBoxGroups = other.lightTranslationEventBoxGroups;
@@ -293,25 +342,28 @@ namespace Stx.ThreeSixtyfyer
 
             //containsCustomWalls = ContainsCustomWalls();//crashes exe to use this. tried it in BeatMap360Generator.cs also. same result.
         }
-
-        public void AddRotationEvent(float beat, int amount, int type)
+        //Don't convert new events or new obs to beats since will add new events and obs into an object that has existing events or obstacles in seconds
+        //amount is in steps of 15 degrees. 1 is clockwise 15 degrees, 2 is 30 degrees and -1 is counterclockwise, etc
+        public void AddRotationEvent(float time, int amount, int type)//, float bpm)
         {
             if (amount == 0)
                 return;
 
+            //float beat = (float)Math.Round(time / (60 / bpm), 3);//convert to beats and reduce to 3 digits
+
             if (MajorVersion == 2)
-                AddRotationEventV2(beat, amount, type);
+                AddRotationEventV2(time, amount, type);
             else
-                AddRotationEventV3(beat, amount, type);
+                AddRotationEventV3(time, amount, type);
         }
-        public void AddRotationEventV2(float beat, int amount, int type = 15)
+        public void AddRotationEventV2(float time, int amount, int type = 15)
         {
-            BeatmapEventData rotationEvent;
+            BeatmapEventType rotationEvent;
 
             if (type == 14)
-                rotationEvent = BeatmapEventData.Early;
+                rotationEvent = BeatmapEventType.Early;
             else
-                rotationEvent = BeatmapEventData.Late;
+                rotationEvent = BeatmapEventType.Late;
 
             //value 0 = -60, 1 = -45, 2 = -30, 3 = -15, 4 = 15, 5 = 30, 6 = 45, 7 = 60 degrees clockwise
             int theValue;
@@ -349,12 +401,12 @@ namespace Stx.ThreeSixtyfyer
 
             Events.Add(new BeatMapEventV2()
             {
-                time = beat,
+                time = time,//in beats but JSON calls it time, and 
                 type = rotationEvent,
                 value = theValue
             });
         }
-        public void AddRotationEventV3(float theBeat, int amount, int type = 2)
+        public void AddRotationEventV3(float time, int amount, int type = 2)
         {
             SpawnRotationEventType rotationEvent;
 
@@ -366,30 +418,34 @@ namespace Stx.ThreeSixtyfyer
 
             rotationEvents.Add(new BeatMapRotationEvent()
             {
-                beat = theBeat,
+                beat = time,
                 spawnRotationEventType = rotationEvent, // Update this to match version 3's enum
                 rotation = amount * 15
             });
         }
-        public void AddWall(float time, int noteLineIndex, ObstacleType type, int noteLineLayer, float duration, int width, int height = 5)
+
+        public void AddWall(float time, int noteLineIndex, ObstacleType type, int noteLineLayer, float durationTime, int width, int height)//, float bpm)//already in beats
         {
+            //float beat = (float)Math.Round(time / (60 / bpm), 3);//convert to beats and reduce to 3 digits
+            //float durationBeat = (float)Math.Round(durationTime / (60 / bpm), 3);
+
             if (MajorVersion == 2)
-                AddWallV2(time, noteLineIndex, type, noteLineLayer, duration, width, height = 5);
+                AddWallV2(time, noteLineIndex, type, noteLineLayer, durationTime, width, height = 5);
             else
-                AddWallV3(time, noteLineIndex, type, noteLineLayer, duration, width, height = 5);
+                AddWallV3(time, noteLineIndex, type, noteLineLayer, durationTime, width, height = 5);
         }
-        public void AddWallV2(float time, int noteLineIndex, ObstacleType type, int noteLineLayer, float duration, int width, int height = 5)
+        public void AddWallV2(float time, int noteLineIndex, ObstacleType type, int noteLineLayer, float durationTime, int width, int height)
         {
             Obstacles.Add(new BeatMapObstacleV2()
             {
-                time = time,
+                time = time,//in beats but JSON calls it time
                 noteLineIndex = noteLineIndex,
                 type = type,
-                duration = duration,
+                duration = durationTime,
                 width = width
             });
         }
-        public void AddWallV3(float time, int noteLineIndex, ObstacleType type, int noteLineLayer, float duration, int width, int height = 5)
+        public void AddWallV3(float time, int noteLineIndex, ObstacleType type, int noteLineLayer, float durationTime, int width, int height = 5)
         {
             //If v2 obstacle is sent here to convert it to v3
             if ((int)type == 0)//Fullheight
@@ -406,20 +462,171 @@ namespace Stx.ThreeSixtyfyer
                 beat = time,
                 xPosition = noteLineIndex,
                 yPosition = noteLineLayer,
-                d = duration,
+                d = durationTime,
                 w = width,
                 height = height
             });
         }
-        public void Sort()
+        public void AddBoost(float time, bool on)
         {
-            if (Events != null)
+            if (MajorVersion == 2)
+                AddBoostV2(time, on);
+            else
+                AddBoostV3(time, on);
+        }
+        public void AddBoostV2(float time, bool on)
+        {
+            Events.Add(new BeatMapEventV2()
+            {
+                time = time,//in beats but JSON calls it time, and 
+                type = BeatmapEventType.BoostColors,//boost event
+                value = on ? 1 : 0
+            });
+        }
+        public void AddBoostV3(float time, bool on)
+        {
+            boostEvents.Add(new ColorBoostBeatmapEvents()
+            {
+                beat = time,
+                on = on ? 1 : 0
+            });
+        }
+        //For one saber - taken from NoteData.Mirror
+        public static BeatMapNote Mirror(BeatMapNote note)
+        {
+            //note.noteLineIndex = lineCount - 1 - note.noteLineIndex;
+            //flipLineIndex = lineCount - 1 - flipLineIndex;
+            switch (note.noteLineIndex)
+            {
+                case 0:
+                    note.noteLineIndex = 3;
+                    break;
+                case 1:
+                    note.noteLineIndex = 2;
+                    break;
+                case 2:
+                    note.noteLineIndex = 1;
+                    break;
+                case 3:
+                    note.noteLineIndex = 0;
+                    break;
+                    // No need for a default case as it's not necessary in this scenario
+            }
+            note.type = (note.type == NoteType.NoteA) ? NoteType.NoteB : NoteType.NoteA; //colorType = colorType.Opposite();
+            //cutDirection = cutDirection.Mirrored();
+            switch (note.noteCutDirection)
+            {
+                case NoteCutDirection.Left:
+                    note.noteCutDirection = NoteCutDirection.Right;
+                    break;
+                case NoteCutDirection.Right:
+                    note.noteCutDirection = NoteCutDirection.Left;
+                    break;
+                case NoteCutDirection.UpLeft:
+                    note.noteCutDirection = NoteCutDirection.UpRight;
+                    break;
+                case NoteCutDirection.UpRight:
+                    note.noteCutDirection = NoteCutDirection.UpLeft;
+                    break;
+                case NoteCutDirection.DownLeft:
+                    note.noteCutDirection = NoteCutDirection.DownRight;
+                    break;
+                case NoteCutDirection.DownRight:
+                    note.noteCutDirection = NoteCutDirection.DownLeft;
+                    break;
+                    // No need for a default case as it's not necessary in this scenario
+            }
+            note.angleOffset = 0 - note.angleOffset;
+
+            return note;
+        }
+
+        //Sort and convert to beats. FIXX - may need to decide if v2 or 3 and say beat instead of time
+        //Sort and convert v3 RotationEvents & bombs
+        public void SortAndConvertToBeats(float bpm)
+        {
+            if (Events != null && Events.Count > 0)
+            {
                 Events = Events.OrderBy((e) => e.time).ToList();
+
+                foreach (var eachEvent in Events)
+                {
+                    eachEvent.time = (float)Math.Round(eachEvent.time / (60 / bpm), 3);//will be 8 digits without this
+                }
+            }
             if (Notes != null)
-                Notes = Notes.OrderBy((e) => e.time).ToList();
-            if (Obstacles != null)
+            {
+                //Notes = Notes.OrderBy((e) => e.time).ToList();
+
+                foreach (var eachNote in Notes)
+                {
+                    eachNote.time = (float)Math.Round(eachNote.time / (60 / bpm), 4);//will be 7 digits without this
+                }
+            }
+            if (Obstacles != null && Obstacles.Count > 0)
+            {
                 Obstacles = Obstacles.OrderBy((e) => e.time).ToList();
-            //don't need the other items here (sliders, waypoints,etc)
+
+                foreach (var eachObs in Obstacles)
+                {
+                    eachObs.time     = (float)Math.Round(eachObs.time     / (60 / bpm), 3);//will be 10 digits without this
+                    eachObs.duration = (float)Math.Round(eachObs.duration / (60 / bpm), 3);
+                }
+            }
+            if (Sliders != null && Sliders.Count > 0)
+            {
+                foreach (var eachSlider in Sliders)
+                {
+                    eachSlider.time     = (float)Math.Round(eachSlider.time     / (60 / bpm), 3);
+                    eachSlider.tailTime = (float)Math.Round(eachSlider.tailTime / (60 / bpm), 3);
+                }
+            }
+            //v3
+            if (rotationEvents != null && rotationEvents.Count > 0)
+            {
+                rotationEvents = rotationEvents.OrderBy((e) => e.beat).ToList();
+
+                foreach (var rotation in rotationEvents)
+                {
+                    rotation.beat = (float)Math.Round(rotation.beat / (60 / bpm), 3);
+                }
+            }
+            if (colorNotes != null && colorNotes.Count > 0)
+            {
+                //colorNotes = colorNotes.OrderBy((e) => e.beat).ToList();
+
+                foreach (var eachNote in colorNotes)
+                {
+                    eachNote.beat = (float)Math.Round(eachNote.beat / (60 / bpm), 4);
+                }
+            }
+            if (obstacles != null && obstacles.Count > 0)
+            {
+                obstacles = obstacles.OrderBy((e) => e.beat).ToList();
+
+                foreach (var eachObs in obstacles)
+                {
+                    eachObs.beat = (float)Math.Round(eachObs.beat / (60 / bpm), 3);//will be 10 digits without this
+                    eachObs.d = (float)Math.Round(eachObs.d / (60 / bpm), 3);
+                }
+            }
+            if (sliders != null && sliders.Count > 0)
+            {
+                foreach (var eachSlider in sliders)
+                {
+                    eachSlider.beat     = (float)Math.Round(eachSlider.beat     / (60 / bpm), 3);
+                    eachSlider.tailBeat = (float)Math.Round(eachSlider.tailBeat / (60 / bpm), 3);
+                }
+            }
+            if (bombNotes != null && bombNotes.Count > 0)
+            {
+                //bombNotes = bombNotes.OrderBy((e) => e.beat).ToList();
+
+                foreach (var bomb in bombNotes)
+                {
+                    bomb.beat = (float)Math.Round(bomb.beat / (60 / bpm), 3);
+                }
+            }
         }
         /*
         //crashes exe if use this
@@ -499,7 +706,7 @@ namespace Stx.ThreeSixtyfyer
         { return BeatMapData.MajorVersion == 2; }//time should appear in v2 maps not matter what value (even 0)
 
         [JsonProperty("_type")]//, DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public BeatmapEventData type { get; set; }
+        public BeatmapEventType type { get; set; }
 
         public bool ShouldSerializetype()
         { return BeatMapData.MajorVersion == 2; }//time should appear in v2 maps not matter what value (even 0)
@@ -516,23 +723,7 @@ namespace Stx.ThreeSixtyfyer
     {
 
     }
-    /*
-    [Serializable]
-    public class BeatMapEventV3 : BeatMapEvent
-    {
-        [JsonProperty("customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public object customData { get; set; }
 
-        [JsonProperty("b")]
-        public float beat { get; set; }//beat
-
-        [JsonProperty("e")]
-        public SpawnRotationEventType spawnRotationEventType { get; set; }//type
-
-        [JsonProperty("r")]
-        public int rotation { get; set; }//rotation
-    }
-    */
     [Serializable]
     public class BeatMapRotationEvent//v3
     {
@@ -569,6 +760,10 @@ namespace Stx.ThreeSixtyfyer
 
         [JsonProperty("_cutDirection")]
         public NoteCutDirection noteCutDirection { get; set; }
+
+        [JsonProperty("_angle", DefaultValueHandling = DefaultValueHandling.Ignore)]//added this so that if v3 note needs to be mirrored for one saber
+        public int angleOffset { get; set; }//An integer number which represents the additional counter-clockwise angle offset applied to the note's cut direction in degrees
+
     }
 
     [Serializable]
@@ -576,30 +771,7 @@ namespace Stx.ThreeSixtyfyer
     {
 
     }
-    /*
-    [Serializable]
-    public class BeatMapNoteV3 : BeatMapNote
-    {
-        [JsonProperty("b")]
-        public float beat { get; set; }//beat
 
-        [JsonProperty("x")]
-        public int xPosition { get; set; }
-
-        [JsonProperty("y")]
-        public int yPosition { get; set; }
-
-        [JsonProperty("c")]
-        public NoteType color { get; set; }//0 Red 1 Blue
-
-        [JsonProperty("d")]
-        public NoteCutDirection cutDirection { get; set; }
-
-        [JsonProperty("a")]
-        public int angleOffset { get; set; }//An integer number which represents the additional counter-clockwise angle offset applied to the note's cut direction in degrees
-
-    }
-    */
     [Serializable]
     public class BeatMapColorNote//v3
     {
@@ -621,20 +793,18 @@ namespace Stx.ThreeSixtyfyer
         [JsonProperty("a")]
         public int angleOffset { get; set; }//An integer number which represents the additional counter-clockwise angle offset applied to the note's cut direction in degrees
     }
-    /*
-    //Not needed since just passing sliders with changes
     [Serializable]
     public class BeatMapSlider
     {
         [JsonProperty("_customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public object CustomData { get; set; }
-
+        /*
         [JsonProperty("_colorType")]
         public int colorType { get; set; }
-
+        */
         [JsonProperty("_headTime")]
-        public float headTime { get; set; }
-
+        public float time { get; set; }
+        /*
         [JsonProperty("_headLineIndex")]
         public int headLineIndex { get; set; }
 
@@ -646,10 +816,10 @@ namespace Stx.ThreeSixtyfyer
 
         [JsonProperty("_headCutDirection")]
         public int headCutDirection { get; set; }
-
+        */
         [JsonProperty("_tailTime")]
         public float tailTime { get; set; }
-
+        /*
         [JsonProperty("_tailLineIndex")]
         public int tailLineIndex { get; set; }
 
@@ -664,9 +834,8 @@ namespace Stx.ThreeSixtyfyer
 
         [JsonProperty("_sliderMidAnchorMode")]
         public int sliderMidAnchorMode { get; set; }
-
+        */
     }
-    */
 
     [Serializable]
     public class BeatMapObstacle
@@ -695,32 +864,7 @@ namespace Stx.ThreeSixtyfyer
     {
 
     }
-    /*
-    [Serializable]
-    public class BeatMapObstacleV3 : BeatMapObstacle
-    {
-        [JsonProperty("customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public object customData { get; set; }
 
-        [JsonProperty("b")]
-        public float beat { get; set; }//beat
-
-        [JsonProperty("x")]
-        public int xPosition { get; set; }
-
-        [JsonProperty("y")]
-        public int yPosition { get; set; }
-
-        [JsonProperty("d")]
-        public float d { get; set; }
-
-        [JsonProperty("w")]
-        public int w { get; set; }
-
-        [JsonProperty("h")]
-        public int height { get; set; }
-    }
-    */
     [Serializable]
     public class BeatMapObstacleV3
     {
@@ -757,5 +901,60 @@ namespace Stx.ThreeSixtyfyer
 
         [JsonProperty("y")]
         public int yPosition { get; set; }
+    }
+    [Serializable]
+    public class BeatMapSliderV3
+    {
+        [JsonProperty("customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object CustomData { get; set; }
+
+        [JsonProperty("b")]
+        public float beat { get; set; }
+        /*
+        [JsonProperty("c")]
+        public int color { get; set; }
+
+        [JsonProperty("x")]
+        public int xPosition { get; set; }
+
+        [JsonProperty("y")]
+        public int yPosition { get; set; }
+
+        [JsonProperty("d")]
+        public int direction { get; set; }
+
+        [JsonProperty("mu")]
+        public float multiplier { get; set; }
+        */
+        [JsonProperty("tb")]
+        public float tailBeat { get; set; }
+        /*
+        [JsonProperty("tx")]
+        public int tailXPosition { get; set; }
+
+        [JsonProperty("ty")]
+        public int tailYPosition { get; set; }
+
+        [JsonProperty("tc")]
+        public int tailDirection { get; set; }
+
+        [JsonProperty("tmu")]
+        public float tailMultiplier { get; set; }
+
+        [JsonProperty("m")]
+        public int midAnchorMode { get; set; }
+        */
+    }
+    [Serializable]
+    public class ColorBoostBeatmapEvents
+    {
+        [JsonProperty("customData", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public object CustomData { get; set; }
+
+        [JsonProperty("b")]
+        public float beat { get; set; }
+
+        [JsonProperty("o")]
+        public int on { get; set; }
     }
 }

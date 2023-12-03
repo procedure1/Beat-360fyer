@@ -154,13 +154,13 @@ namespace Stx.ThreeSixtyfyer
         {
             this.Height = 165;
 
-            GitHubBasedUpdateCheck updateChecker = new GitHubBasedUpdateCheck("CodeStix", "Beat-360fyer", "Build/latestVersion.txt");
+            GitHubBasedUpdateCheck updateChecker = new GitHubBasedUpdateCheck("procedure1", "Beat-360fyer", "Build/latestVersion.txt");
             updateChecker.CheckForUpdate(Assembly.GetExecutingAssembly().GetName().Version.ToString(3)).ContinueWith((update) => {
 
                 if (update.Result && MessageBox.Show("There is an update available for Beat-360fyer, please download the newest version " +
                         "to receive new generator features and improvements. Go to the download page right now?", "An update!", MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation) == DialogResult.Yes)
                 {
-                    Process.Start(@"https://github.com/CodeStix/Beat-360fyer/releases");
+                    Process.Start(@"https://github.com/procedure1/Beat-360fyer/releases");
                     Environment.Exit(0);
                 }
             });
@@ -416,7 +416,7 @@ namespace Stx.ThreeSixtyfyer
 
         private void toolStripStatusLabel2_Click(object sender, EventArgs e)
         {
-            Process.Start("https://github.com/CodeStix/Beat-360fyer");
+            Process.Start("https://github.com/procedure1/Beat-360fyer");
         }
 
         private void buttonGeneratorSettings_Click(object sender, EventArgs e)
@@ -479,7 +479,7 @@ namespace Stx.ThreeSixtyfyer
 
         private void linkCreateGenerator_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
-            Process.Start("https://github.com/CodeStix/Beat-360fyer");
+            Process.Start("https://github.com/procedure1/Beat-360fyer");
         }
     }
 }
